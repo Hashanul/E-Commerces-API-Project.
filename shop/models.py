@@ -67,7 +67,7 @@ class CartItem(models.Model):
         return f"{self.quantity} X {self.product.name}"
     
 # 4. Checkout
-class Checkout(models.model):
+class Checkout(models.Model):
     PAYMENT_METHODS = [
         ('bkash', 'Bkash'),
         ('card', 'Card'),

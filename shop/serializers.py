@@ -52,6 +52,8 @@ class CartSerializer(serializers.ModelSerializer):
         model = Cart
         fields = ['id', 'user', 'items', 'total_price', 'total_items' ]
 
+
+# Checkout
 class CheckoutSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only = True)
     cart = CartSerializer(read_only = True)
