@@ -10,8 +10,8 @@ router.register('users', UserViewSet)
 router.register('profiles', CustomerProfileViewSet)
 router.register('categories', CategoryViewSet)
 router.register('products', ProductViewSet)
-router.register('carts', CartViewSet)
 router.register('cart-items', CartItemViewSet)
+router.register('carts', CartViewSet)
 router.register('checkouts', CheckoutViewSet)
 router.register('orders', OrderViewSet)
 router.register('order-items', OrderItemViewSet)
@@ -19,4 +19,8 @@ router.register('payments', PaymentViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
+
+    path('api-auth/', include('rest_framework.urls')),
+    path('auth/', include('djoser.urls')),
+    path('auth/', include('djoser.urls.jwt')),
 ]
