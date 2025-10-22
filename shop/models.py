@@ -49,12 +49,12 @@ class Product(models.Model):
 
 class Cart(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='carts', null=True, blank=True)
-    session_id = models.CharField(max_length=100, null=True, blank=True)
+    session_id = models.CharField(max_length=100, blank=True, null=True, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"cart : {self.id} - {self.user.username or self.session_id}"
+        return f"cart : {self.id} - {self.user or self.session_id}"
     
     @property
     def total_price(self):

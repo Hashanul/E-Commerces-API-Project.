@@ -17,10 +17,7 @@ router.register('orders', OrderViewSet)
 router.register('order-items', OrderItemViewSet)
 router.register('payments', PaymentViewSet)
 
+
 urlpatterns = [
     path('', include(router.urls)),
-
-    path('api-auth/', include('rest_framework.urls')),
-    path('auth/', include('djoser.urls')),
-    path('auth/', include('djoser.urls.jwt')),
 ]

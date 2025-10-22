@@ -1,7 +1,7 @@
-from django.shortcuts import render
-from rest_framework import viewsets, permissions, status
-from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from rest_framework import viewsets, permissions, status
+from rest_framework.views import APIView
+from rest_framework.response import Response
 from django.contrib.auth.models import User
 from .models import (CustomerProfile, Category, Product, Cart,
                      CartItem, Checkout, Order, OrderItem, Payment)
@@ -9,6 +9,7 @@ from .serializers import (UserSerializer, CustomerProfileSerializer,
                           CategorySerializer, ProductSerializer, CartSerializer,
                           CartItemSerializer, CheckoutSerializer, OrderItemSerializer,
                           PaymentSerializer)
+from .utils import get_user_cart, get_guest_cart, merge_guest_cart_to_user
 
 
 # 1. User --
@@ -50,96 +51,54 @@ class CartViewSet(viewsets.ModelViewSet):
     serializer_class = CartSerializer
     # permission_classes = [permissions.AllowAny]  
 
-    def get_queryset(self):
-        user = self.request.user if self.request.user.is_authenticated else None
-        if user:
-            return Cart.objects.filter(user=user)
-        else:
-            session_id = self.request.session.session_key
-            if not session_id:
-                self.request.session.create()
-            return Cart.objects.filter(session_id=session_id)
-    
-    def get_or_create_cart(self, request):
-        user = request.user if request.user.is_authenticated else None 
-        if user:
-            cart, _ = Cart.objects.get_or_create(user=user)
-        else:
-            if not request.session.session_key:
-                request.session.create()
-            session_id = request.session.session_key
-            cart, _ = Cart.objects.get_or_create(session_id=session_id, user=None)
-        return cart
-    
-    def create(self, request, *args, **kwargs):
-        """Add product to cart"""
-        product_id = request.data.get('product_id')
-        quantity = int(request.data.get('quantity', 1))
+    def get_permissions(self):
+        # Allow anonymous users to create/list session-based carts
+        if self.action in ['create', 'list']:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
 
-        product = get_object_or_404(Product, id=product_id)
-        cart = self.get_or_create_cart(request)
-
-        item, created = CartItem.objects.get_or_create(cart=cart, product=product)
-        if not created:
-            item.quantity += quantity
-        item.save()
-
-        serializer = CartSerializer(cart)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
-    def list(self, request, *args, **kwargs):
-        """Get current user's/session's cart"""
-        cart = self.get_or_create_cart(request)
-        serializer = CartSerializer(cart)
-        return Response(serializer.data)
-
-    def destroy(self, request, *args, **kwargs):
-        """Clear all items from current cart"""
-        cart = self.get_or_create_cart(request)
-        cart.items.all().delete()
-        return Response({"message": "Cart cleared"}, status=204)  
 
 
 class CartItemViewSet(viewsets.ModelViewSet):
     queryset = CartItem.objects.all()
     serializer_class = CartItemSerializer
-    # permission_classes = [permissions.IsAuthenticated]  
 
+    def get_permissions(self):
+        # Allow anonymous users to add/list cart items (use session-based cart)
+        if self.action in ['create', 'list']:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
+
+
+    def get_cart(self):
+        """Get the correct cart depending on login status"""
+        if self.request.user.is_authenticated:
+            merge_guest_cart_to_user(self.request)
+            return get_user_cart(self.request)
+        else:
+            return get_guest_cart(self.request)
 
     def get_queryset(self):
-        request = self.request
-        if request.user.is_authenticated:
-            return CartItem.objects.filter(cart__user=self.request.user)
-        else:
-            session_id = request.session.session_key
-            if not session_id:
-                request.session.create()
-            return CartItem.objects.filter(cart__session_id=session_id)
-    
+        cart = self.get_cart()
+        return cart.items.all()
+
     def perform_create(self, serializer):
-        cart = None
-        if self.request.user.is_authenticated:
-            cart, _ = Cart.objects.get_or_create(user=self.request.user)
+        cart = self.get_cart()
+        product = serializer.validated_data.get('product')
+
+        # Check if item already exists in cart
+        existing_item = cart.items.filter(product=product).first()
+        if existing_item:
+            existing_item.quantity += serializer.validated_data.get('quantity', 1)
+            existing_item.save()
+            return existing_item  # just update, no new create
         else:
-            if not self.request.session.session_key:
-                self.request.session.create()
-            session_id = self.request.session.session_key
-            cart, _ = Cart.objects.get_or_create(session_id=session_id, user=None)
+            serializer.save(cart=cart)
 
-        product = serializer.validated_data['product']
-        quantity = serializer.validated_data.get('quantity', 1)
-
-        # Check if the product already exists in the cart
-        cart_item, created = CartItem.objects.get_or_create(
-            cart=cart,
-            product=product,
-            defaults={'quantity': quantity}
-        )
-
-        if not created:
-            # If it exists, just increment the quantity
-            cart_item.quantity += quantity
-            cart_item.save()
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # 6. Checkout --
@@ -172,7 +131,7 @@ class OrderItemViewSet(viewsets.ModelViewSet):
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
-
+    permission_classes = [permissions.IsAuthenticated]
 
 
 

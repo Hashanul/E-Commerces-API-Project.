@@ -37,16 +37,15 @@ class ProductSerializer(serializers.ModelSerializer):
 # Cart & CartItem
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
-    # product_id = serializers.PrimaryKeyRelatedField(
-    #     queryset = Product.objects.all(),
-    #     source = 'product',
-    #     write_only=True,
-    # )
+    product_price = serializers.DecimalField(source='product.price', read_only=True, max_digits=10, decimal_places=2)
     subtotal = serializers.ReadOnlyField()
 
+    # quantity = serializers.IntegerField()
     class Meta:
         model = CartItem
-        fields = ['id', 'product', 'product_name', 'quantity', 'subtotal']
+        fields = ['id', 'product', 'product_name', 'product_price', 'quantity', 'subtotal']
+
+        
 
 class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)
